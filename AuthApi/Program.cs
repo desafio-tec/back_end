@@ -10,20 +10,20 @@ using System.Threading.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// --- 1. CONFIGURAÇÃO DE LOGS ---
+// --- 1. Configuração de Logs ---
 builder.Logging.ClearProviders();
 builder.Logging.AddConsole();
 
-// --- 2. BANCO DE DADOS ---
+// --- 2. Banco de Dados ---
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(connectionString));
 
-// --- 3. INJEÇÃO DE DEPENDÊNCIA ---
+// --- 3. Injeção de Dependência (Repositories e Services) ---
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<TokenService>();
 
-// --- 4. CONFIGURAÇÃO DO JWT ---
+// --- 4. Configuração do JWT ---
 var secretKey = builder.Configuration["Jwt:Key"] ?? "MinhaChaveSuperSecretaDeDesenvolvimento123!";
 var key = Encoding.ASCII.GetBytes(secretKey);
 
@@ -45,7 +45,7 @@ builder.Services.AddAuthentication(x =>
     };
 });
 
-// --- 5. RATE LIMITING ---
+// --- 5. Rate Limiting e CORS ---
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
@@ -61,27 +61,30 @@ builder.Services.AddRateLimiter(options =>
             }));
 });
 
-// --- 6. CORS ---
 var allowedOrigins = "_allowedOrigins";
 builder.Services.AddCors(options =>
 {
     options.AddPolicy(name: allowedOrigins,
         policy =>
         {
-            policy.SetIsOriginAllowed(origin => true)
-                  .AllowAnyHeader()
-                  .AllowAnyMethod()
-                  .AllowCredentials();
+            policy.WithOrigins(
+                "https://back.lhtecnologia.net.br", 
+                "https://front.lhtecnologia.net.br",
+                "http://localhost:3000")
+            .AllowAnyHeader()
+            .AllowAnyMethod();
         });
 });
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 
-// --- 7. SWAGGER ---
+// --- 6. Swagger com Suporte a JWT ---
 builder.Services.AddSwaggerGen(c =>
 {
     c.SwaggerDoc("v1", new OpenApiInfo { Title = "LH Tecnologia Auth API", Version = "v1" });
+    
+    // Configura o botão "Authorize" no Swagger
     c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
     {
         Description = "Insira o token JWT desta maneira: Bearer {seu_token}",
@@ -90,12 +93,17 @@ builder.Services.AddSwaggerGen(c =>
         Type = SecuritySchemeType.ApiKey,
         Scheme = "Bearer"
     });
+
     c.AddSecurityRequirement(new OpenApiSecurityRequirement
     {
         {
             new OpenApiSecurityScheme
             {
-                Reference = new OpenApiReference { Type = ReferenceType.SecurityScheme, Id = "Bearer" }
+                Reference = new OpenApiReference
+                {
+                    Type = ReferenceType.SecurityScheme,
+                    Id = "Bearer"
+                }
             },
             new string[] {}
         }
@@ -104,23 +112,28 @@ builder.Services.AddSwaggerGen(c =>
 
 var app = builder.Build();
 
-// --- 8. PIPELINE ---
+// --- 7. Pipeline ---
 app.UseSwagger();
 app.UseSwaggerUI();
+
 app.UseHttpsRedirection();
 app.UseCors(allowedOrigins);
 app.UseRateLimiter();
+
+// Ordem importante: Auth -> Controllers
 app.UseAuthentication(); 
 app.UseAuthorization();
+
 app.MapControllers();
 
-// --- 9. MIGRAÇÕES ---
+// Migração Automática
 using (var scope = app.Services.CreateScope())
 {
     var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
     try 
     {
         dbContext.Database.Migrate();
+        Console.WriteLine("Banco de dados migrado com sucesso.");
     }
     catch (Exception ex)
     {
@@ -128,6 +141,5 @@ using (var scope = app.Services.CreateScope())
     }
 }
 
-// --- 10. PORTA ---
 var port = Environment.GetEnvironmentVariable("PORT") ?? "8080";
 app.Run($"http://0.0.0.0:{port}");
