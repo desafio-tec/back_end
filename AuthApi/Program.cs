@@ -10,20 +10,26 @@ using System.Threading.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// --- 1. Configuração de Logs ---
+// ============================================================
+// 1. CONFIGURAÇÕES DE SERVIÇOS (Injeção de Dependência)
+// ============================================================
+
+// Logs para monitorar o que acontece no servidor via console
 builder.Logging.ClearProviders();
 builder.Logging.AddConsole();
 
-// --- 2. Banco de Dados ---
+// Configuração do Banco de Dados PostgreSQL usando a string do appsettings.json
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(connectionString));
 
-// --- 3. Injeção de Dependência ---
+// Registrando Repositórios e Serviços de Negócio
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<TokenService>();
 
-// --- 4. Configuração do JWT ---
+// ============================================================
+// 2. SEGURANÇA: AUTENTICAÇÃO JWT
+// ============================================================
 var secretKey = builder.Configuration["Jwt:Key"] ?? "MinhaChaveSuperSecretaDeDesenvolvimento123!";
 var key = Encoding.ASCII.GetBytes(secretKey);
 
@@ -34,7 +40,7 @@ builder.Services.AddAuthentication(x =>
 })
 .AddJwtBearer(x =>
 {
-    x.RequireHttpsMetadata = false;
+    x.RequireHttpsMetadata = false; // Define como true em produção real com SSL
     x.SaveToken = true;
     x.TokenValidationParameters = new TokenValidationParameters
     {
@@ -45,7 +51,11 @@ builder.Services.AddAuthentication(x =>
     };
 });
 
-// --- 5. Rate Limiting e CORS (AQUI ESTÁ O AJUSTE) ---
+// ============================================================
+// 3. SEGURANÇA: RATE LIMITING E CORS (Crucial para o Vercel)
+// ============================================================
+
+// Rate Limiting: Evita ataques de força bruta limitando requisições por IP
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
@@ -61,39 +71,45 @@ builder.Services.AddRateLimiter(options =>
             }));
 });
 
+// CORS: Define quem pode "conversar" com esta API. 
+// Sem isso, o navegador do usuário bloqueia as chamadas vindo do Vercel.
 var allowedOrigins = "_allowedOrigins";
 builder.Services.AddCors(options =>
 {
     options.AddPolicy(name: allowedOrigins,
         policy =>
         {
-            // Adicionei a URL que aparece na sua imagem do Vercel
             policy.WithOrigins(
                 "https://back.lhtecnologia.net.br", 
                 "https://front.lhtecnologia.net.br",
-                "https://frontend-teste-nu.vercel.app", // URL do seu print
-                "http://localhost:3000")
+                "https://frontend-teste-nu.vercel.app", // URL capturada do seu erro de CORS
+                "http://localhost:3000") // Para testes locais
             .AllowAnyHeader()
             .AllowAnyMethod()
-            .AllowCredentials(); // Importante para o navegador aceitar a resposta
+            .AllowCredentials(); // Permite que o front envie o Token JWT nos headers
         });
 });
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 
-// --- 6. Swagger ---
+// ============================================================
+// 4. DOCUMENTAÇÃO: SWAGGER COM JWT
+// ============================================================
 builder.Services.AddSwaggerGen(c =>
 {
     c.SwaggerDoc("v1", new OpenApiInfo { Title = "LH Tecnologia Auth API", Version = "v1" });
+    
+    // Adiciona o botão "Authorize" para testar rotas protegidas
     c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
     {
-        Description = "Insira o token JWT desta maneira: Bearer {seu_token}",
+        Description = "Insira o token JWT: Bearer {seu_token}",
         Name = "Authorization",
         In = ParameterLocation.Header,
         Type = SecuritySchemeType.ApiKey,
         Scheme = "Bearer"
     });
+
     c.AddSecurityRequirement(new OpenApiSecurityRequirement
     {
         {
@@ -106,37 +122,8 @@ builder.Services.AddSwaggerGen(c =>
     });
 });
 
+// Finaliza a configuração e constrói o app
 var app = builder.Build();
 
-// --- 7. Pipeline (ORDEM É TUDO) ---
-app.UseSwagger();
-app.UseSwaggerUI();
-
-app.UseHttpsRedirection();
-
-// O CORS precisa vir antes de quase tudo
-app.UseCors(allowedOrigins); 
-
-app.UseRateLimiter();
-app.UseAuthentication(); 
-app.UseAuthorization();
-
-app.MapControllers();
-
-// Migração Automática
-using (var scope = app.Services.CreateScope())
-{
-    var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-    try 
-    {
-        dbContext.Database.Migrate();
-        Console.WriteLine("Banco de dados migrado com sucesso.");
-    }
-    catch (Exception ex)
-    {
-        Console.WriteLine($"Erro ao migrar banco: {ex.Message}");
-    }
-}
-
-var port = Environment.GetEnvironmentVariable("PORT") ?? "8080";
-app.Run($"http://0.0.0.0:{port}");
+// ============================================================
+// 5. PIPELINE DE EXECUÇÃO (A ORDEM DAS
