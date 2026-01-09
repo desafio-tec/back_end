@@ -71,6 +71,21 @@ builder.Services.AddRateLimiter(options =>
             }));
 });
 
+var allowedOrigins = "_allowedOrigins";
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy(name: allowedOrigins,
+        policy =>
+        {
+            policy.WithOrigins(
+                "https://back.lhtecnologia.net.br", 
+                "https://front.lhtecnologia.net.br",
+                "https://frontend-teste-nu.vercel.app", // <--- ADICIONE ESTA LINHA
+                "http://localhost:3000")
+            .AllowAnyHeader()
+            .AllowAnyMethod();
+        });
+});
 // CORS: Define quem pode "conversar" com esta API. 
 // Sem isso, o navegador do usuário bloqueia as chamadas vindo do Vercel.
 var allowedOrigins = "_allowedOrigins";
