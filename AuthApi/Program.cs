@@ -45,22 +45,7 @@ builder.Services.AddAuthentication(x =>
     };
 });
 
-// --- 5. Rate Limiting e CORS ---
-builder.Services.AddRateLimiter(options =>
-{
-    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
-    options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(httpContext =>
-        RateLimitPartition.GetFixedWindowLimiter(
-            partitionKey: httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
-            factory: partition => new FixedWindowRateLimiterOptions
-            {
-                AutoReplenishment = true,
-                PermitLimit = 10,
-                QueueLimit = 0,
-                Window = TimeSpan.FromSeconds(10)
-            }));
-});
-
+// --- 5. Configuração de CORS (Corrigido com Vercel) ---
 var allowedOrigins = "_allowedOrigins";
 builder.Services.AddCors(options =>
 {
@@ -70,76 +55,12 @@ builder.Services.AddCors(options =>
             policy.WithOrigins(
                 "https://back.lhtecnologia.net.br", 
                 "https://front.lhtecnologia.net.br",
+                "https://frontend-teste-nu.vercel.app", // Adicionado conforme o erro no navegador
                 "http://localhost:3000")
             .AllowAnyHeader()
-            .AllowAnyMethod();
+            .AllowAnyMethod()
+            .SetPreflightMaxAge(TimeSpan.FromMinutes(10)); // Ajuda na estabilidade do Preflight
         });
 });
 
-builder.Services.AddControllers();
-builder.Services.AddEndpointsApiExplorer();
-
-// --- 6. Swagger com Suporte a JWT ---
-builder.Services.AddSwaggerGen(c =>
-{
-    c.SwaggerDoc("v1", new OpenApiInfo { Title = "LH Tecnologia Auth API", Version = "v1" });
-    
-    // Configura o botão "Authorize" no Swagger
-    c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
-    {
-        Description = "Insira o token JWT desta maneira: Bearer {seu_token}",
-        Name = "Authorization",
-        In = ParameterLocation.Header,
-        Type = SecuritySchemeType.ApiKey,
-        Scheme = "Bearer"
-    });
-
-    c.AddSecurityRequirement(new OpenApiSecurityRequirement
-    {
-        {
-            new OpenApiSecurityScheme
-            {
-                Reference = new OpenApiReference
-                {
-                    Type = ReferenceType.SecurityScheme,
-                    Id = "Bearer"
-                }
-            },
-            new string[] {}
-        }
-    });
-});
-
-var app = builder.Build();
-
-// --- 7. Pipeline ---
-app.UseSwagger();
-app.UseSwaggerUI();
-
-app.UseHttpsRedirection();
-app.UseCors(allowedOrigins);
-app.UseRateLimiter();
-
-// Ordem importante: Auth -> Controllers
-app.UseAuthentication(); 
-app.UseAuthorization();
-
-app.MapControllers();
-
-// Migração Automática
-using (var scope = app.Services.CreateScope())
-{
-    var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-    try 
-    {
-        dbContext.Database.Migrate();
-        Console.WriteLine("Banco de dados migrado com sucesso.");
-    }
-    catch (Exception ex)
-    {
-        Console.WriteLine($"Erro ao migrar banco: {ex.Message}");
-    }
-}
-
-var port = Environment.GetEnvironmentVariable("PORT") ?? "8080";
-app.Run($"http://0.0.0.0:{port}");
+//
