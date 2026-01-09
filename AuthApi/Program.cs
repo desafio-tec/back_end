@@ -67,13 +67,9 @@ builder.Services.AddCors(options =>
     options.AddPolicy(name: allowedOrigins,
         policy =>
         {
-            policy.WithOrigins(
-                "https://back.lhtecnologia.net.br", 
-                "https://front.lhtecnologia.net.br",
-                "https://frontend2-jade-phi.vercel.app",
-                "http://localhost:3000")
-            .AllowAnyHeader()
-            .AllowAnyMethod();
+            policy.AllowAnyOrigin()
+                  .AllowAnyHeader()
+                  .AllowAnyMethod();
         });
 });
 
