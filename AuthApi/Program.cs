@@ -52,9 +52,9 @@ builder.Services.AddCors(options =>
     options.AddPolicy(name: allowedOrigins,
         policy =>
         {
-            policy.AllowAnyOrigin()  // Permite qualquer site
-                  .AllowAnyHeader()  // Permite qualquer cabeçalho
-                  .AllowAnyMethod(); // Permite GET, POST, PUT, DELETE, etc.
+            policy.AllowAnyOrigin()
+                  .AllowAnyHeader()
+                  .AllowAnyMethod();
         });
 });
 
@@ -68,7 +68,7 @@ builder.Services.AddRateLimiter(options =>
             factory: partition => new FixedWindowRateLimiterOptions
             {
                 AutoReplenishment = true,
-                PermitLimit = 50, // Aumentei o limite para não atrapalhar o teste
+                PermitLimit = 50,
                 QueueLimit = 0,
                 Window = TimeSpan.FromSeconds(10)
             }));
@@ -94,3 +94,35 @@ builder.Services.AddSwaggerGen(c =>
         {
             new OpenApiSecurityScheme
             {
+                Reference = new OpenApiReference { Type = ReferenceType.SecurityScheme, Id = "Bearer" }
+            },
+            new string[] {}
+        }
+    });
+});
+
+var app = builder.Build();
+
+// --- 8. Pipeline ---
+app.UseSwagger();
+app.UseSwaggerUI();
+
+app.UseCors(allowedOrigins); 
+
+app.UseHttpsRedirection();
+app.UseRateLimiter();
+app.UseAuthentication(); 
+app.UseAuthorization();
+
+app.MapControllers();
+
+// Migração Automática
+using (var scope = app.Services.CreateScope())
+{
+    var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    try { dbContext.Database.Migrate(); }
+    catch (Exception ex) { Console.WriteLine($"Erro ao migrar banco: {ex.Message}"); }
+}
+
+var port = Environment.GetEnvironmentVariable("PORT") ?? "8080";
+app.Run($"http://0.0.0.0:{port}"); 
