@@ -19,7 +19,7 @@ var connectionString = builder.Configuration.GetConnectionString("DefaultConnect
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(connectionString));
 
-// --- 3. Injeção de Dependência (Repositories e Services) ---
+// --- 3. Injeção de Dependência ---
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<TokenService>();
 
@@ -45,22 +45,52 @@ builder.Services.AddAuthentication(x =>
     };
 });
 
-// --- 5. Configuração de CORS (Corrigido com Vercel) ---
+// --- 5. CORS TOTALMENTE ABERTO (PARA TESTE) ---
 var allowedOrigins = "_allowedOrigins";
 builder.Services.AddCors(options =>
 {
     options.AddPolicy(name: allowedOrigins,
         policy =>
         {
-            policy.WithOrigins(
-                "https://back.lhtecnologia.net.br", 
-                "https://front.lhtecnologia.net.br",
-                "https://frontend-teste-nu.vercel.app", // Adicionado conforme o erro no navegador
-                "http://localhost:3000")
-            .AllowAnyHeader()
-            .AllowAnyMethod()
-            .SetPreflightMaxAge(TimeSpan.FromMinutes(10)); // Ajuda na estabilidade do Preflight
+            policy.AllowAnyOrigin()  // Permite qualquer site
+                  .AllowAnyHeader()  // Permite qualquer cabeçalho
+                  .AllowAnyMethod(); // Permite GET, POST, PUT, DELETE, etc.
         });
 });
 
-//
+// --- 6. Rate Limiting ---
+builder.Services.AddRateLimiter(options =>
+{
+    options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
+    options.GlobalLimiter = PartitionedRateLimiter.Create<HttpContext, string>(httpContext =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            factory: partition => new FixedWindowRateLimiterOptions
+            {
+                AutoReplenishment = true,
+                PermitLimit = 50, // Aumentei o limite para não atrapalhar o teste
+                QueueLimit = 0,
+                Window = TimeSpan.FromSeconds(10)
+            }));
+});
+
+builder.Services.AddControllers();
+builder.Services.AddEndpointsApiExplorer();
+
+// --- 7. Swagger ---
+builder.Services.AddSwaggerGen(c =>
+{
+    c.SwaggerDoc("v1", new OpenApiInfo { Title = "LH Tecnologia Auth API", Version = "v1" });
+    c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
+    {
+        Description = "Bearer {seu_token}",
+        Name = "Authorization",
+        In = ParameterLocation.Header,
+        Type = SecuritySchemeType.ApiKey,
+        Scheme = "Bearer"
+    });
+    c.AddSecurityRequirement(new OpenApiSecurityRequirement
+    {
+        {
+            new OpenApiSecurityScheme
+            {
