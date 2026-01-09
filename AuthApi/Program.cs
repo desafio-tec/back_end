@@ -19,7 +19,7 @@ var connectionString = builder.Configuration.GetConnectionString("DefaultConnect
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(connectionString));
 
-// --- 3. Injeção de Dependência ---
+// --- 3. Injeção de Dependência (Repositories e Services) ---
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<TokenService>();
 
@@ -45,24 +45,7 @@ builder.Services.AddAuthentication(x =>
     };
 });
 
-// --- 5. CORS Configuração (Unificada) ---
-var allowedOrigins = "_allowedOrigins";
-builder.Services.AddCors(options =>
-{
-    options.AddPolicy(name: allowedOrigins,
-        policy =>
-        {
-            policy.WithOrigins(
-                "https://back.lhtecnologia.net.br", 
-                "https://front.lhtecnologia.net.br",
-                "https://frontend-teste-nu.vercel.app", // URL da Vercel adicionada
-                "http://localhost:3000")
-            .AllowAnyHeader()
-            .AllowAnyMethod();
-        });
-});
-
-// --- 6. Rate Limiting ---
+// --- 5. Rate Limiting e CORS ---
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
@@ -78,27 +61,49 @@ builder.Services.AddRateLimiter(options =>
             }));
 });
 
+var allowedOrigins = "_allowedOrigins";
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy(name: allowedOrigins,
+        policy =>
+        {
+            policy.WithOrigins(
+                "https://back.lhtecnologia.net.br", 
+                "https://front.lhtecnologia.net.br",
+                "http://localhost:3000")
+            .AllowAnyHeader()
+            .AllowAnyMethod();
+        });
+});
+
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 
-// --- 7. Swagger ---
+// --- 6. Swagger com Suporte a JWT ---
 builder.Services.AddSwaggerGen(c =>
 {
     c.SwaggerDoc("v1", new OpenApiInfo { Title = "LH Tecnologia Auth API", Version = "v1" });
+    
+    // Configura o botão "Authorize" no Swagger
     c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
     {
-        Description = "Insira o token JWT: Bearer {seu_token}",
+        Description = "Insira o token JWT desta maneira: Bearer {seu_token}",
         Name = "Authorization",
         In = ParameterLocation.Header,
         Type = SecuritySchemeType.ApiKey,
         Scheme = "Bearer"
     });
+
     c.AddSecurityRequirement(new OpenApiSecurityRequirement
     {
         {
             new OpenApiSecurityScheme
             {
-                Reference = new OpenApiReference { Type = ReferenceType.SecurityScheme, Id = "Bearer" }
+                Reference = new OpenApiReference
+                {
+                    Type = ReferenceType.SecurityScheme,
+                    Id = "Bearer"
+                }
             },
             new string[] {}
         }
@@ -107,34 +112,33 @@ builder.Services.AddSwaggerGen(c =>
 
 var app = builder.Build();
 
-// --- 8. Pipeline (A ORDEM É CRUCIAL) ---
-
-// 1. Swagger primeiro
+// --- 7. Pipeline ---
 app.UseSwagger();
 app.UseSwaggerUI();
 
-// 2. Redirecionamento HTTPS
 app.UseHttpsRedirection();
-
-// 3. CORS deve vir ANTES de Rate Limiting e Auth para permitir requisições OPTIONS
 app.UseCors(allowedOrigins);
-
-// 4. Rate Limiting
 app.UseRateLimiter();
 
-// 5. Autenticação e Autorização
+// Ordem importante: Auth -> Controllers
 app.UseAuthentication(); 
 app.UseAuthorization();
 
-// 6. Mapeamento
 app.MapControllers();
 
 // Migração Automática
 using (var scope = app.Services.CreateScope())
 {
     var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-    try { dbContext.Database.Migrate(); }
-    catch (Exception ex) { Console.WriteLine($"Erro ao migrar: {ex.Message}"); }
+    try 
+    {
+        dbContext.Database.Migrate();
+        Console.WriteLine("Banco de dados migrado com sucesso.");
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"Erro ao migrar banco: {ex.Message}");
+    }
 }
 
 var port = Environment.GetEnvironmentVariable("PORT") ?? "8080";
