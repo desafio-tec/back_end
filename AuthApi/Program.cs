@@ -45,7 +45,18 @@ builder.Services.AddAuthentication(x =>
     };
 });
 
-// --- 5. Rate Limiting ---
+// --- 5. CORS TOTALMENTE LIBERADO (Para resolver o erro das imagens) ---
+builder.Services.AddCors(options =>
+{
+    options.AddPolicy("PermitirTudo", policy =>
+    {
+        policy.AllowAnyOrigin()
+              .AllowAnyHeader()
+              .AllowAnyMethod();
+    });
+});
+
+// --- 6. Rate Limiting ---
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
@@ -64,7 +75,7 @@ builder.Services.AddRateLimiter(options =>
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 
-// --- 6. Swagger ---
+// --- 7. Swagger ---
 builder.Services.AddSwaggerGen(c =>
 {
     c.SwaggerDoc("v1", new OpenApiInfo { Title = "LH Tecnologia Auth API", Version = "v1" });
@@ -90,9 +101,13 @@ builder.Services.AddSwaggerGen(c =>
 
 var app = builder.Build();
 
-// --- 7. Pipeline (CORS REMOVIDO DAQUI) ---
+// --- 8. Pipeline de Execução (Ordem Crítica) ---
+
 app.UseSwagger();
 app.UseSwaggerUI();
+
+// O CORS DEVE ser um dos primeiros para responder ao navegador
+app.UseCors("PermitirTudo"); 
 
 app.UseHttpsRedirection();
 app.UseRateLimiter();
@@ -101,13 +116,21 @@ app.UseAuthorization();
 
 app.MapControllers();
 
-// Migração Automática
+// Migração Automática do Banco
 using (var scope = app.Services.CreateScope())
 {
     var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-    try { dbContext.Database.Migrate(); }
-    catch (Exception ex) { Console.WriteLine($"Erro ao migrar banco: {ex.Message}"); }
+    try 
+    { 
+        dbContext.Database.Migrate(); 
+        Console.WriteLine("Banco de dados migrado com sucesso.");
+    }
+    catch (Exception ex) 
+    { 
+        Console.WriteLine($"Erro ao migrar banco: {ex.Message}"); 
+    }
 }
 
+// Configuração de Porta para Deploy
 var port = Environment.GetEnvironmentVariable("PORT") ?? "8080";
 app.Run($"http://0.0.0.0:{port}");
