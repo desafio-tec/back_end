@@ -45,20 +45,7 @@ builder.Services.AddAuthentication(x =>
     };
 });
 
-// --- 5. CORS TOTALMENTE ABERTO (PARA TESTE) ---
-var allowedOrigins = "_allowedOrigins";
-builder.Services.AddCors(options =>
-{
-    options.AddPolicy(name: allowedOrigins,
-        policy =>
-        {
-            policy.AllowAnyOrigin()
-                  .AllowAnyHeader()
-                  .AllowAnyMethod();
-        });
-});
-
-// --- 6. Rate Limiting ---
+// --- 5. Rate Limiting ---
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
@@ -77,7 +64,7 @@ builder.Services.AddRateLimiter(options =>
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 
-// --- 7. Swagger ---
+// --- 6. Swagger ---
 builder.Services.AddSwaggerGen(c =>
 {
     c.SwaggerDoc("v1", new OpenApiInfo { Title = "LH Tecnologia Auth API", Version = "v1" });
@@ -103,11 +90,9 @@ builder.Services.AddSwaggerGen(c =>
 
 var app = builder.Build();
 
-// --- 8. Pipeline ---
+// --- 7. Pipeline (CORS REMOVIDO DAQUI) ---
 app.UseSwagger();
 app.UseSwaggerUI();
-
-app.UseCors(allowedOrigins); 
 
 app.UseHttpsRedirection();
 app.UseRateLimiter();
@@ -125,4 +110,4 @@ using (var scope = app.Services.CreateScope())
 }
 
 var port = Environment.GetEnvironmentVariable("PORT") ?? "8080";
-app.Run($"http://0.0.0.0:{port}"); 
+app.Run($"http://0.0.0.0:{port}");
