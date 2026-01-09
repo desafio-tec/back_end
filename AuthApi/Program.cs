@@ -19,7 +19,7 @@ var connectionString = builder.Configuration.GetConnectionString("DefaultConnect
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(connectionString));
 
-// --- 3. Injeção de Dependência (Repositories e Services) ---
+// --- 3. Injeção de Dependência ---
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<TokenService>();
 
@@ -45,7 +45,7 @@ builder.Services.AddAuthentication(x =>
     };
 });
 
-// --- 5. Rate Limiting e CORS ---
+// --- 5. Rate Limiting e CORS (AQUI ESTÁ O AJUSTE) ---
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
@@ -67,24 +67,25 @@ builder.Services.AddCors(options =>
     options.AddPolicy(name: allowedOrigins,
         policy =>
         {
+            // Adicionei a URL que aparece na sua imagem do Vercel
             policy.WithOrigins(
                 "https://back.lhtecnologia.net.br", 
                 "https://front.lhtecnologia.net.br",
+                "https://frontend-teste-nu.vercel.app", // URL do seu print
                 "http://localhost:3000")
             .AllowAnyHeader()
-            .AllowAnyMethod();
+            .AllowAnyMethod()
+            .AllowCredentials(); // Importante para o navegador aceitar a resposta
         });
 });
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 
-// --- 6. Swagger com Suporte a JWT ---
+// --- 6. Swagger ---
 builder.Services.AddSwaggerGen(c =>
 {
     c.SwaggerDoc("v1", new OpenApiInfo { Title = "LH Tecnologia Auth API", Version = "v1" });
-    
-    // Configura o botão "Authorize" no Swagger
     c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
     {
         Description = "Insira o token JWT desta maneira: Bearer {seu_token}",
@@ -93,17 +94,12 @@ builder.Services.AddSwaggerGen(c =>
         Type = SecuritySchemeType.ApiKey,
         Scheme = "Bearer"
     });
-
     c.AddSecurityRequirement(new OpenApiSecurityRequirement
     {
         {
             new OpenApiSecurityScheme
             {
-                Reference = new OpenApiReference
-                {
-                    Type = ReferenceType.SecurityScheme,
-                    Id = "Bearer"
-                }
+                Reference = new OpenApiReference { Type = ReferenceType.SecurityScheme, Id = "Bearer" }
             },
             new string[] {}
         }
@@ -112,15 +108,16 @@ builder.Services.AddSwaggerGen(c =>
 
 var app = builder.Build();
 
-// --- 7. Pipeline ---
+// --- 7. Pipeline (ORDEM É TUDO) ---
 app.UseSwagger();
 app.UseSwaggerUI();
 
 app.UseHttpsRedirection();
-app.UseCors(allowedOrigins);
-app.UseRateLimiter();
 
-// Ordem importante: Auth -> Controllers
+// O CORS precisa vir antes de quase tudo
+app.UseCors(allowedOrigins); 
+
+app.UseRateLimiter();
 app.UseAuthentication(); 
 app.UseAuthorization();
 
