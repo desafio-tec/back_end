@@ -14,7 +14,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Logging.ClearProviders();
 builder.Logging.AddConsole();
 
-// --- 2. BANCO DE DADOS (PostgreSQL) ---
+// --- 2. BANCO DE DADOS ---
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(connectionString));
@@ -23,7 +23,7 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<TokenService>();
 
-// --- 4. CONFIGURAÇÃO DO JWT (Autenticação) ---
+// --- 4. CONFIGURAÇÃO DO JWT ---
 var secretKey = builder.Configuration["Jwt:Key"] ?? "MinhaChaveSuperSecretaDeDesenvolvimento123!";
 var key = Encoding.ASCII.GetBytes(secretKey);
 
@@ -45,7 +45,7 @@ builder.Services.AddAuthentication(x =>
     };
 });
 
-// --- 5. RATE LIMITING (Controle de acessos por IP) ---
+// --- 5. RATE LIMITING ---
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = StatusCodes.Status429TooManyRequests;
@@ -61,32 +61,73 @@ builder.Services.AddRateLimiter(options =>
             }));
 });
 
-// --- 6. CONFIGURAÇÃO DO CORS (Liberando o Front-end) ---
+// --- 6. CORS ---
 var allowedOrigins = "_allowedOrigins";
 builder.Services.AddCors(options =>
 {
     options.AddPolicy(name: allowedOrigins,
         policy =>
         {
-            // SetIsOriginAllowed(origin => true) permite qualquer origem, 
-            // inclusive localhost e vercel, e aceita credenciais (necessário para alguns tipos de Auth)
-            policy.SetIsOriginAllowed(origin => true) 
+            policy.SetIsOriginAllowed(origin => true)
                   .AllowAnyHeader()
                   .AllowAnyMethod()
-                  .AllowCredentials(); 
+                  .AllowCredentials();
         });
 });
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 
-// --- 7. SWAGGER (Documentação com suporte a JWT) ---
+// --- 7. SWAGGER ---
 builder.Services.AddSwaggerGen(c =>
 {
     c.SwaggerDoc("v1", new OpenApiInfo { Title = "LH Tecnologia Auth API", Version = "v1" });
-    
     c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
     {
         Description = "Insira o token JWT desta maneira: Bearer {seu_token}",
         Name = "Authorization",
         In = ParameterLocation.Header,
+        Type = SecuritySchemeType.ApiKey,
+        Scheme = "Bearer"
+    });
+    c.AddSecurityRequirement(new OpenApiSecurityRequirement
+    {
+        {
+            new OpenApiSecurityScheme
+            {
+                Reference = new OpenApiReference { Type = ReferenceType.SecurityScheme, Id = "Bearer" }
+            },
+            new string[] {}
+        }
+    });
+});
+
+var app = builder.Build();
+
+// --- 8. PIPELINE ---
+app.UseSwagger();
+app.UseSwaggerUI();
+app.UseHttpsRedirection();
+app.UseCors(allowedOrigins);
+app.UseRateLimiter();
+app.UseAuthentication(); 
+app.UseAuthorization();
+app.MapControllers();
+
+// --- 9. MIGRAÇÕES ---
+using (var scope = app.Services.CreateScope())
+{
+    var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+    try 
+    {
+        dbContext.Database.Migrate();
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"Erro ao migrar banco: {ex.Message}");
+    }
+}
+
+// --- 10. PORTA ---
+var port = Environment.GetEnvironmentVariable("PORT") ?? "8080";
+app.Run($"http://0.0.0.0:{port}");
