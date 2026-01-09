@@ -70,6 +70,7 @@ builder.Services.AddCors(options =>
             policy.WithOrigins(
                 "https://back.lhtecnologia.net.br", 
                 "https://front.lhtecnologia.net.br",
+                "https://frontend2-jade-phi.vercel.app",
                 "http://localhost:3000")
             .AllowAnyHeader()
             .AllowAnyMethod();
