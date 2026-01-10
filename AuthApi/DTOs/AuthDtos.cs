@@ -1,17 +1,16 @@
 using System.ComponentModel.DataAnnotations;
-using Swashbuckle.AspNetCore.Annotations;
 
 namespace AuthApi.DTOs
 {
     public class RegisterDto
     {
         [Required(ErrorMessage = "O nome é obrigatório")]
-        [RegularExpression(@"^[a-zA-ZÀ-ÿ]+(\s[a-zA-ZÀ-ÿ]+)+$", ErrorMessage = "Informe seu nome completo (nome e sobrenome)")]
-        public string Name { get; set; } = "João Silva";
+        [RegularExpression(@"^[a-zA-ZÀ-ÿ]+(\s[a-zA-ZÀ-ÿ]+)+$", ErrorMessage = "Informe seu nome completo")]
+        public string Name { get; set; } = "Lucas Silva";
 
         [Required(ErrorMessage = "O login é obrigatório")]
         [StringLength(20, MinimumLength = 4, ErrorMessage = "O login deve ter entre 4 e 20 caracteres")]
-        public string Login { get; set; } = "joao123";
+        public string Login { get; set; } = "lucas123";
 
         [Required(ErrorMessage = "A senha é obrigatória")]
         [MinLength(8, ErrorMessage = "A senha deve ter no mínimo 8 caracteres")]
@@ -22,7 +21,7 @@ namespace AuthApi.DTOs
     public class LoginDto
     {
         [Required(ErrorMessage = "O login é obrigatório")]
-        public string Login { get; set; } = "joao123";
+        public string Login { get; set; } = "lucas123";
 
         [Required(ErrorMessage = "A senha é obrigatória")]
         public string Password { get; set; } = "Senha123!";
