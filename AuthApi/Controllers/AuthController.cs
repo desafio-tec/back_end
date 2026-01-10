@@ -22,39 +22,54 @@ namespace AuthApi.Controllers
         [HttpPost("register")]
         public async Task<ActionResult<UserResponseDto>> Register(RegisterDto dto)
         {
+            // 1. Validação de Login Único
             var userExists = await _userRepository.GetByLoginAsync(dto.Login);
-            if (userExists != null) return BadRequest("Este login já está em uso.");
+            if (userExists != null)
+                return BadRequest(new { message = "Este login já está em uso por outro usuário." });
 
-            var user = new User {
+            var user = new User
+            {
                 Name = dto.Name,
                 Login = dto.Login,
                 PasswordHash = BCrypt.Net.BCrypt.HashPassword(dto.Password)
             };
 
             await _userRepository.AddAsync(user);
-            return Ok(new UserResponseDto(user.Id, user.Name, user.Login));
+
+            return Ok(new UserResponseDto 
+            { 
+                Id = user.Id, 
+                Name = user.Name, 
+                Login = user.Login 
+            });
         }
 
         [HttpPost("login")]
         public async Task<IActionResult> Login(LoginDto dto)
         {
             var user = await _userRepository.GetByLoginAsync(dto.Login);
-            if (user == null) return Unauthorized("Usuário ou senha inválidos.");
+            
+            if (user == null) 
+                return Unauthorized(new { message = "Usuário ou senha inválidos." });
 
+            // 2. Trava de Segurança (Bloqueio após 3 erros)
             if (user.AccessFailedCount >= 3)
-                return BadRequest("Conta bloqueada por excesso de tentativas falhas.");
+                return BadRequest(new { message = "Conta bloqueada por excesso de tentativas. Procure o administrador." });
 
             if (!BCrypt.Net.BCrypt.Verify(dto.Password, user.PasswordHash))
             {
                 user.AccessFailedCount++;
                 await _userRepository.UpdateAsync(user);
                 
-                int restantes = 3 - user.AccessFailedCount;
-                return Unauthorized(restantes > 0 
-                    ? $"Senha incorreta. Você tem mais {restantes} tentativa(s)." 
-                    : "Limite de tentativas excedido. Conta bloqueada.");
+                int tentativasRestantes = 3 - user.AccessFailedCount;
+                return Unauthorized(new { 
+                    message = tentativasRestantes > 0 
+                        ? $"Senha incorreta. Você tem mais {tentativasRestantes} tentativa(s) antes do bloqueio." 
+                        : "Limite de tentativas excedido. Conta bloqueada." 
+                });
             }
 
+            // 3. Sucesso: Reseta o contador de erros
             user.AccessFailedCount = 0;
             await _userRepository.UpdateAsync(user);
 
