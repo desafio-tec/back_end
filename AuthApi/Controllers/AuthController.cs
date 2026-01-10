@@ -3,7 +3,6 @@ using AuthApi.Models;
 using AuthApi.Repositories;
 using AuthApi.Services;
 using AuthApi.DTOs;
-using BCrypt.Net;
 
 namespace AuthApi.Controllers
 {
@@ -20,10 +19,27 @@ namespace AuthApi.Controllers
             _tokenService = tokenService;
         }
 
+        // Endpoint de Verificação em tempo real (Corrige o travamento no Front)
+        [HttpGet("check-login")]
+        public async Task<IActionResult> CheckLogin([FromQuery] string login)
+        {
+            // Se o campo for muito curto, não bloqueia ainda
+            if (string.IsNullOrEmpty(login) || login.Length < 3)
+                return Ok(new { available = true });
+
+            var user = await _repo.GetByLoginAsync(login);
+            
+            // Retorna EXATAMENTE o que o seu Front-end espera: { available: bool }
+            return Ok(new { available = user == null });
+        }
+
         [HttpPost("register")]
         public async Task<IActionResult> Register(RegisterDto dto)
         {
-            // Verifica se o login já existe para evitar erro de banco
+            // Validação de segurança de 8 caracteres no Back-end
+            if (string.IsNullOrEmpty(dto.Password) || dto.Password.Length < 8)
+                return BadRequest(new { message = "A senha deve ter pelo menos 8 caracteres." });
+
             var existingUser = await _repo.GetByLoginAsync(dto.Login);
             if (existingUser != null)
                 return BadRequest(new { message = "Este login já está em uso." });
@@ -48,7 +64,7 @@ namespace AuthApi.Controllers
             if (user == null)
                 return Unauthorized(new { message = "Usuário ou senha inválidos." });
 
-            // Trava de segurança usando a coluna manual do Neon
+            // Trava de segurança usando a coluna AccessFailedCount do Neon
             if (user.AccessFailedCount >= 3)
                 return BadRequest(new { message = "Conta bloqueada por excesso de tentativas." });
 
@@ -63,24 +79,15 @@ namespace AuthApi.Controllers
                 });
             }
 
-            // Sucesso no login: reseta o contador de falhas
+            // Reseta falhas ao acertar a senha
             user.AccessFailedCount = 0;
             await _repo.UpdateAsync(user);
 
             var token = _tokenService.GenerateToken(user);
-            return Ok(new { token = token, user = new { user.Id, user.Name, user.Login } });
-        }
-
-        // NOVO: Endpoint para o Front-end verificar disponibilidade em tempo real
-        [HttpGet("check-login")]
-        public async Task<IActionResult> CheckLogin([FromQuery] string login)
-        {
-            if (string.IsNullOrEmpty(login) || login.Length < 3)
-                return Ok(new { available = true });
-
-            var user = await _repo.GetByLoginAsync(login);
-            // Se user for nulo, o login está disponível
-            return Ok(new { available = user == null });
+            return Ok(new { 
+                token = token, 
+                user = new { user.Id, user.Name, user.Login } 
+            });
         }
     }
 }
