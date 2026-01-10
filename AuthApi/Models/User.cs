@@ -10,7 +10,7 @@ namespace AuthApi.Models
         public string Login { get; set; } = string.Empty;
         public string PasswordHash { get; set; } = string.Empty;
         
-        // Campo essencial para evitar o Erro 500
+        // Esta coluna DEVE existir no banco para evitar o erro 500
         public int AccessFailedCount { get; set; } = 0; 
         
         public bool IsActive { get; set; } = true;
