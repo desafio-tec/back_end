@@ -4,8 +4,7 @@ namespace AuthApi.DTOs
 {
     public class RegisterDto
     {
-        [Required]
-        [RegularExpression(@"^[a-zA-ZÀ-ÿ]+(\s[a-zA-ZÀ-ÿ]+)+$", ErrorMessage = "Informe nome e sobrenome")]
+        [Required] [RegularExpression(@"^[a-zA-ZÀ-ÿ]+(\s[a-zA-ZÀ-ÿ]+)+$")]
         public string Name { get; set; } = "Lucas Silva";
 
         [Required] public string Login { get; set; } = "lucas123";

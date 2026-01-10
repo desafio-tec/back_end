@@ -16,8 +16,7 @@ namespace AuthApi.Controllers
                 return BadRequest(new { message = "Login já existe" });
 
             var user = new User { 
-                Name = dto.Name, 
-                Login = dto.Login, 
+                Name = dto.Name, Login = dto.Login, 
                 PasswordHash = BCrypt.Net.BCrypt.HashPassword(dto.Password) 
             };
             
@@ -29,9 +28,19 @@ namespace AuthApi.Controllers
         public async Task<IActionResult> Login(LoginDto dto)
         {
             var user = await repo.GetByLoginAsync(dto.Login);
-            if (user == null || !BCrypt.Net.BCrypt.Verify(dto.Password, user.PasswordHash))
-                return Unauthorized(new { message = "Usuário ou senha inválidos" });
+            if (user == null) return Unauthorized(new { message = "Invalido" });
 
+            if (user.AccessFailedCount >= 3) 
+                return BadRequest(new { message = "Conta Bloqueada" });
+
+            if (!BCrypt.Net.BCrypt.Verify(dto.Password, user.PasswordHash)) {
+                user.AccessFailedCount++;
+                await repo.UpdateAsync(user);
+                return Unauthorized(new { message = $"Senha incorreta. Restam {3 - user.AccessFailedCount} tentativas" });
+            }
+
+            user.AccessFailedCount = 0;
+            await repo.UpdateAsync(user);
             return Ok(new { token = tokenService.GenerateToken(user) });
         }
     }

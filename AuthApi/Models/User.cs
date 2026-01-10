@@ -10,5 +10,8 @@ namespace AuthApi.Models
         public string PasswordHash { get; set; } = string.Empty;
         public bool IsActive { get; set; } = true;
         public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+        
+        // A coluna que você criou manualmente agora entra aqui no código
+        public int AccessFailedCount { get; set; } = 0; 
     }
 }
