@@ -2,37 +2,25 @@ using System.ComponentModel.DataAnnotations;
 
 namespace AuthApi.DTOs
 {
-    // O que o front envia para registrar
-    public class RegisterDto
-    {
-        [Required(ErrorMessage = "Nome é obrigatório")]
-        public string Name { get; set; } = string.Empty;
+    public record RegisterDto(
+        [Required(ErrorMessage = "O nome é obrigatório")]
+        [RegularExpression(@"^[a-zA-ZÀ-ÿ]+(\s[a-zA-ZÀ-ÿ]+)+$", ErrorMessage = "Informe seu nome completo (nome e sobrenome)")]
+        string Name,
 
-        [Required(ErrorMessage = "Login é obrigatório")]
-        public string Login { get; set; } = string.Empty;
+        [Required(ErrorMessage = "O login é obrigatório")]
+        [StringLength(20, MinimumLength = 4, ErrorMessage = "O login deve ter entre 4 e 20 caracteres")]
+        string Login,
 
-        [Required(ErrorMessage = "Senha é obrigatória")]
-        [MinLength(6, ErrorMessage = "A senha deve ter no mínimo 6 caracteres")]
-        public string Password { get; set; } = string.Empty;
-    }
+        [Required(ErrorMessage = "A senha é obrigatória")]
+        [MinLength(8, ErrorMessage = "A senha deve ter no mínimo 8 caracteres")]
+        [RegularExpression(@"^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).+$", ErrorMessage = "A senha deve conter maiúscula, minúscula e número")]
+        string Password
+    );
 
-    // O que o front envia para logar
-    public class LoginDto
-    {
-        [Required]
-        public string Login { get; set; } = string.Empty;
-
-        [Required]
-        public string Password { get; set; } = string.Empty;
-    }
-
-    // O que a API devolve (sem a senha!)
-    public class UserResponseDto
-    {
-        public int Id { get; set; }
-        public string Name { get; set; } = string.Empty;
-        public string Login { get; set; } = string.Empty;
-        public bool IsActive { get; set; }
-        public string Token { get; set; } = string.Empty; // O JWT vai aqui
-    }
+    public record LoginDto(
+        [Required(ErrorMessage = "O login é obrigatório")]
+        string Login,
+        [Required(ErrorMessage = "A senha é obrigatória")]
+        string Password
+    );
 }
