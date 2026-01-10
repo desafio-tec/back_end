@@ -6,71 +6,40 @@ using Microsoft.AspNetCore.Mvc;
 
 namespace AuthApi.Controllers
 {
-    [ApiController]
-    [Route("api/[controller]")]
-    public class AuthController : ControllerBase
+    [ApiController] [Route("api/[controller]")]
+    public class AuthController(IUserRepository repo, TokenService tokenService) : ControllerBase
     {
-        private readonly IUserRepository _userRepository;
-        private readonly TokenService _tokenService;
-
-        public AuthController(IUserRepository userRepository, TokenService tokenService)
-        {
-            _userRepository = userRepository;
-            _tokenService = tokenService;
-        }
-
         [HttpPost("register")]
-        public async Task<ActionResult<UserResponseDto>> Register(RegisterDto dto)
+        public async Task<IActionResult> Register(RegisterDto dto)
         {
-            var userExists = await _userRepository.GetByLoginAsync(dto.Login);
-            if (userExists != null) 
-                return BadRequest(new { message = "Este login já está em uso." });
+            if (await repo.GetByLoginAsync(dto.Login) != null) 
+                return BadRequest(new { message = "Login já existe" });
 
-            var user = new User {
-                Name = dto.Name,
-                Login = dto.Login,
-                PasswordHash = BCrypt.Net.BCrypt.HashPassword(dto.Password),
-                AccessFailedCount = 0
-            };
-
-            await _userRepository.AddAsync(user);
-
-            return Ok(new UserResponseDto { 
-                Id = user.Id, 
-                Name = user.Name, 
-                Login = user.Login 
-            });
+            var user = new User { Name = dto.Name, Login = dto.Login, 
+                PasswordHash = BCrypt.Net.BCrypt.HashPassword(dto.Password) };
+            
+            await repo.AddAsync(user);
+            return Ok(new UserResponseDto { Id = user.Id, Name = user.Name, Login = user.Login });
         }
 
         [HttpPost("login")]
         public async Task<IActionResult> Login(LoginDto dto)
         {
-            var user = await _userRepository.GetByLoginAsync(dto.Login);
-            
-            if (user == null) 
-                return Unauthorized(new { message = "Usuário ou senha inválidos." });
+            var user = await repo.GetByLoginAsync(dto.Login);
+            if (user == null) return Unauthorized(new { message = "Invalido" });
 
-            if (user.AccessFailedCount >= 3)
-                return BadRequest(new { message = "Conta bloqueada por excesso de tentativas." });
+            if (user.AccessFailedCount >= 3) 
+                return BadRequest(new { message = "Bloqueado" });
 
-            if (!BCrypt.Net.BCrypt.Verify(dto.Password, user.PasswordHash))
-            {
+            if (!BCrypt.Net.BCrypt.Verify(dto.Password, user.PasswordHash)) {
                 user.AccessFailedCount++;
-                await _userRepository.UpdateAsync(user);
-                
-                int restantes = 3 - user.AccessFailedCount;
-                return Unauthorized(new { 
-                    message = restantes > 0 
-                    ? $"Senha incorreta. Restam {restantes} tentativa(s)." 
-                    : "Conta bloqueada." 
-                });
+                await repo.UpdateAsync(user);
+                return Unauthorized(new { message = $"Restam {3 - user.AccessFailedCount} tentativas" });
             }
 
             user.AccessFailedCount = 0;
-            await _userRepository.UpdateAsync(user);
-
-            var token = _tokenService.GenerateToken(user);
-            return Ok(new { token });
+            await repo.UpdateAsync(user);
+            return Ok(new { token = tokenService.GenerateToken(user) });
         }
     }
 }
