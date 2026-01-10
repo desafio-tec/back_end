@@ -4,21 +4,19 @@ namespace AuthApi.DTOs
 {
     public class RegisterDto
     {
-        [Required(ErrorMessage = "Nome completo é obrigatório")]
+        [Required]
         [RegularExpression(@"^[a-zA-ZÀ-ÿ]+(\s[a-zA-ZÀ-ÿ]+)+$", ErrorMessage = "Informe nome e sobrenome")]
-        public string Name { get; set; } = "Usuario Teste";
+        public string Name { get; set; } = "Lucas Silva";
 
-        [Required]
-        public string Login { get; set; } = "user123";
+        [Required] public string Login { get; set; } = "lucas123";
 
-        [Required]
-        [MinLength(8, ErrorMessage = "Mínimo 8 caracteres")]
+        [Required] [MinLength(8)]
         public string Password { get; set; } = "Senha123!";
     }
 
     public class LoginDto
     {
-        [Required] public string Login { get; set; } = "user123";
+        [Required] public string Login { get; set; } = "lucas123";
         [Required] public string Password { get; set; } = "Senha123!";
     }
 

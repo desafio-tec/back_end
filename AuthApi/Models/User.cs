@@ -8,6 +8,7 @@ namespace AuthApi.Models
         public string Name { get; set; } = string.Empty;
         public string Login { get; set; } = string.Empty;
         public string PasswordHash { get; set; } = string.Empty;
-        public int AccessFailedCount { get; set; } = 0; // Necessário para a trava
+        public bool IsActive { get; set; } = true;
+        public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
     }
 }
