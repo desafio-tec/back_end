@@ -10,18 +10,15 @@ using System.Threading.RateLimiting;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// --- 1. O PONTO CHAVE: Lê as variáveis do painel do Render ---
+// --- 1. CONFIGURAÇÃO DE AMBIENTE ---
 builder.Configuration.AddEnvironmentVariables();
 
 // --- 2. BANCO DE DADOS ---
-// O Render usa ConnectionStrings__DefaultConnection, o .NET traduz isso aqui:
 var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
-
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(connectionString));
 
-// --- 3. JWT (Onde o login costuma dar erro 500) ---
-// No Render você criou "Jwt__Key". O código abaixo vai ler exatamente ela.
+// --- 3. JWT (SEGURANÇA) ---
 var secretKey = builder.Configuration["Jwt:Key"] ?? "ChavePadraoParaNaoDarErro500SeVazio";
 var key = Encoding.ASCII.GetBytes(secretKey);
 
@@ -47,7 +44,7 @@ builder.Services.AddAuthentication(x =>
 builder.Services.AddScoped<IUserRepository, UserRepository>();
 builder.Services.AddScoped<TokenService>();
 
-// --- 5. SWAGGER E OUTROS ---
+// --- 5. SWAGGER ---
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen(c =>
@@ -72,31 +69,38 @@ builder.Services.AddSwaggerGen(c =>
     });
 });
 
+// --- 6. CORS (CONFIGURAÇÃO DE SEGURANÇA RESTRITA) ---
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("_allowedOrigins", policy =>
     {
-        policy.AllowAnyOrigin().AllowAnyHeader().AllowAnyMethod();
+        // Agora apenas o seu Front-end oficial pode acessar a API
+        policy.WithOrigins("https://front-end-delta-fawn.vercel.app") 
+              .AllowAnyHeader()
+              .AllowAnyMethod();
     });
 });
 
 var app = builder.Build();
 
-// --- 6. PIPELINE ---
+// --- 7. PIPELINE (A ORDEM IMPORTA) ---
 app.UseSwagger();
 app.UseSwaggerUI();
+
+// O Cors deve vir ANTES da Autenticação
 app.UseCors("_allowedOrigins");
+
 app.UseAuthentication(); 
 app.UseAuthorization();
 app.MapControllers();
 
-// --- 7. MIGRATIONS (Executa ao iniciar) ---
+// --- 8. MIGRATIONS AUTOMÁTICAS ---
 using (var scope = app.Services.CreateScope())
 {
     var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-    try { dbContext.Database.Migrate(); } catch { /* Log de erro se necessário */ }
+    try { dbContext.Database.Migrate(); } catch { /* Log de erro opcional */ }
 }
 
-// --- 8. PORTA DO RENDER ---
+// --- 9. CONFIGURAÇÃO DE PORTA ---
 var port = Environment.GetEnvironmentVariable("PORT") ?? "8080";
 app.Run($"http://0.0.0.0:{port}");
