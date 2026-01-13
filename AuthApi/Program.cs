@@ -75,7 +75,7 @@ builder.Services.AddCors(options =>
     options.AddPolicy("_allowedOrigins", policy =>
     {
         // Agora apenas o seu Front-end oficial pode acessar a API
-        policy.WithOrigins("https://login.lhtecnologia.net.br/") 
+        policy.WithOrigins("https://login.lhtecnologia.net.br") 
               .AllowAnyHeader()
               .AllowAnyMethod();
     });
